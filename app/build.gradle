@@ -4,7 +4,7 @@ plugins {
 }
 
 group = 'streamtext'
-version = '1.1.1'
+version = '1.1.4'
 
 repositories {
     mavenCentral()
@@ -12,8 +12,8 @@ repositories {
 
 dependencies {
     // Dépendances standard
-    implementation 'org.json:json:20240303'
     implementation 'com.google.guava:guava:33.0.0-jre'
+    implementation 'org.json:json:20240303'
     
     // Tests
     testImplementation 'org.junit.jupiter:junit-jupiter:5.10.0'

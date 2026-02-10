@@ -21,11 +21,11 @@ import javafx.scene.control.ButtonType;
 public class AutoUpdater {
 
     private static final String GITHUB_REPO = "linuxcommandsexplain/StreamText";
-    private static final String CURRENT_VERSION = "1.1.1"; 
+    private static final String CURRENT_VERSION = "1.1.4";
     private static final String GITHUB_API_URL = "https://api.github.com/repos/" + GITHUB_REPO + "/releases/latest";
-    
+
     private UpdateCallback callback;
-    
+
     public interface UpdateCallback {
         void onUpdateAvailable(String version, String downloadUrl);
         void onNoUpdate();
@@ -33,11 +33,11 @@ public class AutoUpdater {
         void onDownloadProgress(int progress);
         void onDownloadComplete(Path filePath);
     }
-    
+
     public AutoUpdater(UpdateCallback callback) {
         this.callback = callback;
     }
-    
+
     public void checkForUpdates() {
         new Thread(() -> {
             try {
@@ -45,22 +45,22 @@ public class AutoUpdater {
                 HttpURLConnection conn = (HttpURLConnection) url.openConnection();
                 conn.setRequestMethod("GET");
                 conn.setRequestProperty("Accept", "application/vnd.github.v3+json");
-                
+
                 if (conn.getResponseCode() == 200) {
                     BufferedReader in = new BufferedReader(new InputStreamReader(conn.getInputStream()));
                     StringBuilder response = new StringBuilder();
                     String line;
                     while ((line = in.readLine()) != null) response.append(line);
                     in.close();
-                    
+
                     JSONObject json = new JSONObject(response.toString());
                     String latestVersion = json.getString("tag_name").replace("v", "");
-                    
+
                     if (isNewerVersion(latestVersion, CURRENT_VERSION)) {
                         JSONArray assets = json.getJSONArray("assets");
                         String downloadUrl = null;
-                        
-                        // PRIORITÉ : Chercher le .deb, sinon prendre le premier asset
+
+                        // Chercher le .deb
                         for (int i = 0; i < assets.length(); i++) {
                             String assetUrl = assets.getJSONObject(i).getString("browser_download_url");
                             if (assetUrl.endsWith(".deb")) {
@@ -68,7 +68,7 @@ public class AutoUpdater {
                                 break;
                             }
                         }
-                        
+
                         if (downloadUrl == null && assets.length() > 0) {
                             downloadUrl = assets.getJSONObject(0).getString("browser_download_url");
                         }
@@ -85,24 +85,23 @@ public class AutoUpdater {
             }
         }).start();
     }
-    
+
     public void downloadUpdate(String downloadUrl) {
         new Thread(() -> {
             try {
                 URL url = new URI(downloadUrl).toURL();
                 HttpURLConnection conn = (HttpURLConnection) url.openConnection();
                 int fileSize = conn.getContentLength();
-                
-                String suffix = downloadUrl.endsWith(".deb") ? ".deb" : ".jar";
-                Path tempFile = Files.createTempFile("streamtext-update-", suffix);
-                
+
+                Path tempFile = Files.createTempFile("streamtext-update-", ".deb");
+
                 try (InputStream in = conn.getInputStream();
                      FileOutputStream out = new FileOutputStream(tempFile.toFile())) {
-                    
+
                     byte[] buffer = new byte[8192];
                     int bytesRead;
                     long totalBytesRead = 0;
-                    
+
                     while ((bytesRead = in.read(buffer)) != -1) {
                         out.write(buffer, 0, bytesRead);
                         totalBytesRead += bytesRead;
@@ -118,32 +117,34 @@ public class AutoUpdater {
     }
 
     public void installUpdate(Path updateFile) {
-        String fileName = updateFile.toString();
-        try {
-            if (fileName.endsWith(".deb")) {
-                // Utilise pkexec pour l'UI de mot de passe sudo
-                String[] command = {"pkexec", "apt-get", "install", "-y", updateFile.toAbsolutePath().toString()};
-                Runtime.getRuntime().exec(command);
-                Platform.exit();
-                System.exit(0);
-            } else {
-                String jarPath = AutoUpdater.class.getProtectionDomain().getCodeSource().getLocation().toURI().getPath();
-                Path currentJar = Paths.get(jarPath);
-                Path updateScript = Files.createTempFile("update-", ".sh");
-                
-                String script = "#!/bin/bash\nsleep 2\nmv '" + currentJar + "' '" + currentJar + ".old'\n" +
-                                "mv '" + updateFile + "' '" + currentJar + "'\n" +
-                                "java -jar '" + currentJar + "' &\nrm '" + updateScript + "'\n";
-                
-                Files.write(updateScript, script.getBytes());
-                updateScript.toFile().setExecutable(true);
-                Runtime.getRuntime().exec(new String[]{"sh", updateScript.toString()});
-                Platform.exit();
-                System.exit(0);
+        new Thread(() -> {
+            try {
+                // Lance l'installation en arrière-plan SANS fermer l'app immédiatement
+                ProcessBuilder pb = new ProcessBuilder("pkexec", "apt-get", "install", "-y", updateFile.toAbsolutePath().toString());
+                Process process = pb.start();
+
+                // Attend que l'installation se termine
+                int exitCode = process.waitFor();
+
+                if (exitCode == 0) {
+                    // Installation réussie, maintenant on peut fermer
+                    Platform.runLater(() -> {
+                        Alert alert = new Alert(Alert.AlertType.INFORMATION);
+                        alert.setTitle("Installation terminée");
+                        alert.setHeaderText("Mise à jour installée avec succès");
+                        alert.setContentText("L'application va maintenant redémarrer.");
+                        alert.showAndWait();
+
+                        Platform.exit();
+                        System.exit(0);
+                    });
+                } else {
+                    Platform.runLater(() -> callback.onError("Erreur lors de l'installation (code: " + exitCode + ")"));
+                }
+            } catch (Exception e) {
+                Platform.runLater(() -> callback.onError("Erreur d'installation: " + e.getMessage()));
             }
-        } catch (Exception e) {
-            callback.onError("Erreur d'installation: " + e.getMessage());
-        }
+        }).start();
     }
 
     private boolean isNewerVersion(String latest, String current) {
@@ -164,7 +165,7 @@ public class AutoUpdater {
         alert.setTitle("Mise à jour disponible");
         alert.setHeaderText("Version " + version + " disponible");
         alert.setContentText("Voulez-vous installer la mise à jour maintenant ?");
-        
+
         Optional<ButtonType> result = alert.showAndWait();
         if (result.isPresent() && result.get() == ButtonType.OK) {
             updater.downloadUpdate(downloadUrl);
