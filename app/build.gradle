@@ -4,7 +4,7 @@ plugins {
 }
 
 group = 'streamtext'
-version = '1.0.0'
+version = '1.1.1'
 
 repositories {
     mavenCentral()
@@ -43,8 +43,6 @@ tasks.named('test') {
 // CONFIGURATION DU JAR "ALL-IN-ONE" (FAT JAR)
 jar {
     duplicatesStrategy = DuplicatesStrategy.EXCLUDE
-    archiveBaseName = "StreamText.jar"
-    archiveVersion.set(project.version)
     
     manifest {
         attributes(
