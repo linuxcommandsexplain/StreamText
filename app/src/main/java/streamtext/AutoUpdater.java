@@ -21,7 +21,7 @@ import javafx.scene.control.ButtonType;
 public class AutoUpdater {
 
     private static final String GITHUB_REPO = "linuxcommandsexplain/StreamText";
-    private static final String CURRENT_VERSION = "1.1.4";
+    private static final String CURRENT_VERSION = "1.1.5";
     private static final String GITHUB_API_URL = "https://api.github.com/repos/" + GITHUB_REPO + "/releases/latest";
 
     private UpdateCallback callback;
