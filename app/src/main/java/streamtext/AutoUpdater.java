@@ -7,6 +7,7 @@ import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
 import java.net.URI;
 import java.net.URL;
+import org.json.JSONObject;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -18,7 +19,7 @@ import javafx.scene.control.ButtonType;
 
 public class AutoUpdater {
 
-       private static final String GITHUB_REPO = "votre-username/StreamText"; // À MODIFIER
+    private static final String GITHUB_REPO = "linuxcommandsexplain/StreamText"; // À MODIFIER
     private static final String CURRENT_VERSION = "1.0.0"; // À MODIFIER
     private static final String GITHUB_API_URL = "https://api.github.com/repos/" + GITHUB_REPO + "/releases/latest";
     
