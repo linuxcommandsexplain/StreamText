@@ -1,69 +1,87 @@
-name: Release
+name: Build & Release
 
 on:
   push:
     tags:
       - 'v*'
 
+permissions:
+  contents: write
+
 jobs:
   build:
-    runs-on: ubuntu-latest
-    
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        include:
+          - os: ubuntu-latest
+            artifact: linux-x64
+            suffix: linux
+          - os: windows-latest
+            artifact: win-x64
+            suffix: win
+          - os: macos-latest
+            artifact: macos-x64
+            suffix: macos
+    runs-on: ${{ matrix.os }}
+
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-      
+    - uses: actions/checkout@v4
+
     - name: Set up JDK 21
       uses: actions/setup-java@v4
       with:
         java-version: '21'
         distribution: 'temurin'
-        
-    - name: Grant execute permission for gradlew
-      run: chmod +x gradlew
-      
+
+    - name: Validate Gradle wrapper
+      uses: gradle/wrapper-validation-action@v2
+
+    - name: Extract version
+      id: version
+      run: |
+        VERSION="${GITHUB_REF#v}"
+        echo "version=$VERSION" >> $GITHUB_OUTPUT
+        echo "VERSION_NAME=$VERSION" >> $GITHUB_ENV
+
     - name: Build with Gradle
-      run: ./gradlew build
-      
-    - name: Build Fat JAR
-      run: ./gradlew shadowJar
-      
-    - name: Get version
-      id: get_version
-      run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
-      
-    - name: Rename JAR
-      run: mv app/build/libs/app-all.jar StreamText-${{ steps.get_version.outputs.VERSION }}.jar
-      
-    - name: Create Release
-      id: create_release
-      uses: actions/create-release@v1
       env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        GRADLE_OPTS: "-Dorg.gradle.configureondemand=true -Dorg.gradle.parallel=true"
+      run: |
+        ./gradlew jpackageImage \
+          -PversionName=${{ env.VERSION_NAME }} \
+          -PjpackagePlatform=${{ matrix.artifact }} \
+          -PtargetPlatform=${{ matrix.suffix }}
+
+    - name: Prepare artifact name
+      id: artifact
+      run: |
+        echo "name=StreamText-${{ env.VERSION_NAME }}-${{ matrix.suffix }}" >> $GITHUB_OUTPUT
+
+    - name: Upload artifacts
+      uses: actions/upload-artifact@v4
       with:
-        tag_name: ${{ github.ref }}
-        release_name: StreamText ${{ steps.get_version.outputs.VERSION }}
+        name: streamtext-${{ matrix.suffix }}
+        path: build/image/${{ steps.artifact.outputs.name }}.*
+
+  create-release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Download all artifacts
+      uses: actions/download-artifact@v4
+      with:
+        path: artifacts/
+
+    - name: Create Release
+      uses: softprops/action-gh-release@v2
+      with:
+        files: |
+          artifacts/streamtext-linux/StreamText-*.linux.tar.gz
+          artifacts/streamtext-win/StreamText-*.msi
+          artifacts/streamtext-macos/StreamText-*.dmg
+        generate_release_notes: true
         draft: false
         prerelease: false
-        body: |
-          ## 🚀 StreamText ${{ steps.get_version.outputs.VERSION }}
-          
-          ### Changements
-          - Voir le changelog complet dans le fichier CHANGELOG.md
-          
-          ### Installation
-          1. Téléchargez le fichier `StreamText-${{ steps.get_version.outputs.VERSION }}.jar`
-          2. Exécutez avec: `java -jar StreamText-${{ steps.get_version.outputs.VERSION }}.jar`
-          
-          ### Prérequis
-          - Java 21 ou supérieur
-          
-    - name: Upload Release Asset
-      uses: actions/upload-release-asset@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        upload_url: ${{ steps.create_release.outputs.upload_url }}
-        asset_path: ./StreamText-${{ steps.get_version.outputs.VERSION }}.jar
-        asset_name: StreamText-${{ steps.get_version.outputs.VERSION }}.jar
-        asset_content_type: application/java-archive
