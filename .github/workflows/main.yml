@@ -1,9 +1,23 @@
+Erreur corrigée ! Le problème était un double outputs mal placé à la ligne 41.
+Workflow CORRIGÉ .github/workflows/auto-release.yml :
+
+text
 name: 🚀 Auto Release (Tag + Build + Packages)
 
 on:
-  workflow_dispatch:  # Bouton manuel dans GitHub
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: 'Type de version (patch/minor/major)'
+        required: true
+        default: 'patch'
+        type: choice
+        options:
+        - patch
+        - minor  
+        - major
   push:
-    branches: [ main ]  # Détecte push sur main
+    branches: [ main ]
 
 permissions:
   contents: write
@@ -19,7 +33,7 @@ jobs:
     steps:
     - uses: actions/checkout@v4
       with:
-        fetch-depth: 0  # Pour git log
+        fetch-depth: 0
     
     - name: 🆕 Générer prochaine version
       id: tag
@@ -27,7 +41,6 @@ jobs:
       with:
         github_api_token: ${{ secrets.GITHUB_TOKEN }}
         tag_prefix: 'v'
-        # Sélectionne le type de version (major/minor/patch)
         default_bump: ${{ github.event.inputs.bump || 'patch' }}
     
     - name: 📝 Générer changelog
@@ -37,10 +50,6 @@ jobs:
         token: ${{ secrets.GITHUB_TOKEN }}
         sinceTag: v0.0.0
         futureRelease: true
-    
-    outputs:
-      new_tag: ${{ steps.tag.outputs.new_tag }}
-      changelog: ${{ steps.changelog.outputs.changelog }}
 
   # 2️⃣ BUILD MULTI-PLATEFORME
   build:
@@ -53,7 +62,7 @@ jobs:
             target: linux-x64
             ext: tar.gz
             name: linux
-          - os: windows-latest  
+          - os: windows-latest
             target: win-x64
             ext: msi
             name: win
@@ -79,16 +88,23 @@ jobs:
           -DjpackagePlatform=${{ matrix.target }} \
           -PversionName=$VERSION_TAG
         
-        # Renommer pour AutoUpdater
-        ARTIFACT="StreamText-${VERSION_TAG}-${{ matrix.name }}.${{ matrix.ext }}"
-        mv build/image/*/*.$([[ "${{ matrix.name }}" == "win" ]] && echo "msi" || echo "${{ matrix.ext }}") $ARTIFACT
-        
-        echo "ARTIFACT_PATH=$ARTIFACT" >> $GITHUB_ENV
+        # Packaging selon OS
+        cd build/image
+        if [ "${{ matrix.name }}" = "linux" ]; then
+          tar czf StreamText-${VERSION_TAG}-linux.tar.gz StreamText-*/
+        elif [ "${{ matrix.name }}" = "win" ]; then
+          mv StreamText-*/StreamText-*.msi StreamText-${VERSION_TAG}-win.msi
+        else
+          hdiutil create StreamText-${VERSION_TAG}-macos.dmg -srcfolder StreamText-*/
+        fi
     
     - uses: actions/upload-artifact@v4
       with:
         name: streamtext-${{ matrix.name }}
-        path: StreamText-*.${{ matrix.ext }}
+        path: |
+          StreamText-*.tar.gz
+          StreamText-*.msi
+          StreamText-*.dmg
 
   # 3️⃣ CRÉER LA RELEASE
   release:
@@ -105,11 +121,7 @@ jobs:
         tag_name: ${{ needs.bump-tag.outputs.new_tag }}
         name: StreamText ${{ needs.bump-tag.outputs.new_tag }}
         body: ${{ needs.bump-tag.outputs.changelog }}
-        draft: false
-        prerelease: false
         files: |
           artifacts/streamtext-linux/StreamText-*.tar.gz
           artifacts/streamtext-win/StreamText-*.msi
           artifacts/streamtext-macos/StreamText-*.dmg
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
