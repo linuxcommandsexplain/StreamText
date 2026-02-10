@@ -1,0 +1,50 @@
+.root {
+    /* La base magique pour tout passer en sombre (boutons, menus, scrolls) */
+    -fx-base: #121212;
+    -fx-background-color: #0F0F0F;
+    -fx-control-inner-background: #0F0F0F;
+
+    /* L'ombre sur tout le tour intérieur pour un effet de profondeur */
+    -fx-effect: innershadow(three-pass-box, rgba(0,0,0,0.9), 15, 0.5, 0, 0);
+}
+
+/* Unifie tous les panels (HBox/VBox) */
+.dark-panel {
+    -fx-background-color: #1A1A1A;
+    -fx-border-color: #333333;
+    -fx-border-width: 0 0 1 0; /* Petite ligne de séparation en bas */
+}
+
+/* Le TextArea */
+.custom-text-area {
+    -fx-font-family: 'Consolas', 'Courier New', monospace;
+    -fx-font-size: 11px;
+    -fx-text-fill: #E0E0E0;
+    -fx-display-caret: true;
+}
+
+.custom-text-area .content {
+    -fx-background-color: #0F0F0F;
+}
+
+/* Labels */
+.label {
+    -fx-text-fill: #BBBBBB;
+}
+
+.file-info-label {
+    -fx-text-fill: #4CAF50; /* Vert pour le fichier ouvert */
+}
+
+/* Barrettes de séparation */
+.separator:horizontal .line {
+    -fx-border-color: #333333;
+}
+
+/* Scrollbars sombres */
+.scroll-bar {
+    -fx-background-color: #1A1A1A;
+}
+.scroll-bar .thumb {
+    -fx-background-color: #333333;
+}
