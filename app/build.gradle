@@ -56,3 +56,59 @@ tasks.register('fatJar', Jar) {
     
     with jar
 }
+
+task jpackageImage(type: Exec) {
+    dependsOn 'jpackage'
+    
+    doLast {
+        def versionName = project.findProperty('versionName') ?: 'dev'
+        def platform = project.findProperty('jpackagePlatform') ?: 'linux-x64'
+        def targetPlatform = project.findProperty('targetPlatform') ?: 'linux'
+        
+        def imageDir = layout.buildDirectory.dir("image/${imageName.get()}").get().asFile
+        def artifactName = "StreamText-${versionName}-${targetPlatform}"
+        
+        // Renommer selon la plateforme
+        switch (targetPlatform) {
+            case 'linux':
+                exec {
+                    commandLine 'tar', 'czf', "${artifactName}.tar.gz", imageDir
+                }
+                break
+            case 'win':
+                // MSI déjà généré par jpackage
+                def msiFile = file("${imageDir}/${artifactName}.msi")
+                if (msiFile.exists()) {
+                    file(msiFile).renameTo("${artifactName}.msi")
+                }
+                break
+            case 'macos':
+                exec {
+                    commandLine 'hdiutil', 'create', "${artifactName}.dmg", '-srcfolder', imageDir
+                }
+                break
+        }
+    }
+}
+
+jpackage {
+    imageOptions {
+        // AutoUpdater compatible
+        destinationDir = layout.buildDirectory.dir('image').map { it.dir(imageName.get()) }
+        // Version pour AutoUpdater
+        version = project.findProperty('versionName') ?: 'dev'
+    }
+    
+    windows {
+        imageOptions.addWinConsole()
+        imageOptions.addWinShortcut()
+    }
+    
+    linux {
+        imageOptions.linuxPackageName = 'streamtext'
+    }
+    
+    mac {
+        imageOptions.macPackageIdentifier = 'com.streamtext.app'
+    }
+}
