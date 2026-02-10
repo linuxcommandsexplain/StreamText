@@ -43,7 +43,7 @@ tasks.named('test') {
 // CONFIGURATION DU JAR "ALL-IN-ONE" (FAT JAR)
 jar {
     duplicatesStrategy = DuplicatesStrategy.EXCLUDE
-    arcghiveBaseName.set(project.name)
+    archiveBaseName = "StreamText.jar"
     archiveVersion.set(project.version)
     
     manifest {
