@@ -279,7 +279,7 @@ public class AdvancedLargeFileViewer extends Application {
                 Alert alert = new Alert(Alert.AlertType.WARNING);
                 alert.setTitle("Attention");
                 alert.setHeaderText("Taille de chunk très grande");
-                alert.setContentText("Une taille de chunk de 8192 KB peut entraîner une consommation mémoire élevée. Il est recommandé de choisir une taille de chunk plus petite pour éviter des problèmes de performance ou de mémoire, surtout sur des machines avec moins de RAM.");
+                alert.setContentText("Une taille de chunk de 8192 KB peut ralentir l'application et augmenter la consommation mémoire, surtout pour les fichiers très volumineux. Assurez-vous que votre système dispose de suffisamment de ressources avant de choisir cette option.");
                 alert.showAndWait();
             }
         });
