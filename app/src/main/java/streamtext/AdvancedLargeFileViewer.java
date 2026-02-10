@@ -58,7 +58,7 @@ public class AdvancedLargeFileViewer extends Application {
         progressBar = new ProgressBar(0);
         progressBar.setPrefWidth(Double.MAX_VALUE);
         progressBar.setVisible(false);
-        
+
         fileInfoLabel = new Label("Aucun fichier ouvert - Mémoire optimisée");
         fileInfoLabel.setStyle("-fx-font-weight: bold; -fx-text-fill: #2E7D32;");
         statusLabel = new Label("Prêt | Consommation mémoire minimale");
@@ -273,6 +273,16 @@ public class AdvancedLargeFileViewer extends Application {
         chunkSizeCombo.setValue(1024);
         chunkSizeCombo.setOnAction(e -> changeChunkSize());
         Label kbLabel = new Label("KB");
+
+        chunkSizeCombo.valueProperty().addListener((obs, oldVal, newVal) -> {
+            if (newVal == 8192) {
+                Alert alert = new Alert(Alert.AlertType.WARNING);
+                alert.setTitle("Attention");
+                alert.setHeaderText("Taille de chunk très grande");
+                alert.setContentText("Une taille de chunk de 8192 KB peut entraîner une consommation mémoire élevée. Il est recommandé de choisir une taille de chunk plus petite pour éviter des problèmes de performance ou de mémoire, surtout sur des machines avec moins de RAM.");
+                alert.showAndWait();
+            }
+        });
         
         HBox optionsBar = new HBox(10, encodingLabel, encodingCombo, new Separator(), chunkLabel, chunkSizeCombo, kbLabel);
         optionsBar.setPadding(new Insets(5, 10, 5, 10));
