@@ -24,7 +24,7 @@ import java.util.List;
 import java.util.Optional;
 
 public class AdvancedLargeFileViewer extends Application {
-    
+
     private TextArea textArea;
     private Label statusLabel;
     private Label fileInfoLabel;
@@ -32,29 +32,38 @@ public class AdvancedLargeFileViewer extends Application {
     private TextField searchField;
     private ComboBox<String> encodingCombo;
     private ComboBox<Integer> chunkSizeCombo;
-    
+
+    // Dark mode support
+    private Scene scene;
+    private boolean isDarkMode = false;
+    private HBox mainToolBar;
+    private HBox searchBar;
+    private HBox navigationBar;
+    private HBox optionsBar;
+    private VBox infoBox;
+
     private AsynchronousFileChannel fileChannel;
     private long fileSize;
     private long currentPosition = 0;
     private int currentChunkSize = 1024 * 1024;
     private Charset currentCharset = StandardCharsets.UTF_8;
     private List<Long> searchResults = new ArrayList<>();
-    
+
     @Override
     public void start(Stage primaryStage) {
         primaryStage.setTitle("StreamText by Axel");
-        
+
         textArea = new TextArea();
         textArea.setEditable(false);
         textArea.setWrapText(false);
         textArea.setStyle("-fx-font-family: 'Consolas', 'Courier New', monospace; -fx-font-size: 11px;");
-        
+
         MenuBar menuBar = createMenuBar(primaryStage);
-        HBox mainToolBar = createMainToolBar(primaryStage);
-        HBox searchBar = createSearchBar();
-        HBox navigationBar = createNavigationBar();
-        HBox optionsBar = createOptionsBar();
-        
+        mainToolBar = createMainToolBar(primaryStage);
+        searchBar = createSearchBar();
+        navigationBar = createNavigationBar();
+        optionsBar = createOptionsBar();
+
         progressBar = new ProgressBar(0);
         progressBar.setPrefWidth(Double.MAX_VALUE);
         progressBar.setVisible(false);
@@ -62,25 +71,26 @@ public class AdvancedLargeFileViewer extends Application {
         fileInfoLabel = new Label("Aucun fichier ouvert - Mémoire optimisée");
         fileInfoLabel.setStyle("-fx-font-weight: bold; -fx-text-fill: #2E7D32;");
         statusLabel = new Label("Prêt | Consommation mémoire minimale");
-        
-        VBox infoBox = new VBox(5, fileInfoLabel, statusLabel);
+
+        infoBox = new VBox(5, fileInfoLabel, statusLabel);
         infoBox.setPadding(new Insets(5, 10, 5, 10));
         infoBox.setStyle("-fx-background-color: #F5F5F5;");
-        
+
         VBox topContainer = new VBox(menuBar, mainToolBar, searchBar, navigationBar, optionsBar, progressBar);
-        
+
         BorderPane root = new BorderPane();
         root.setTop(topContainer);
         root.setCenter(textArea);
         root.setBottom(infoBox);
-        
-        Scene scene = new Scene(root, 1200, 800);
+
+        scene = new Scene(root, 1200, 800);
+
         primaryStage.setScene(scene);
         primaryStage.show();
-        
+
         primaryStage.setOnCloseRequest(e -> closeFileChannel());
         updateMemoryInfo();
-        
+
         // Vérification auto-update au démarrage
         new Thread(() -> {
             try {
@@ -91,10 +101,10 @@ public class AdvancedLargeFileViewer extends Application {
             }
         }).start();
     }
-    
+
     private MenuBar createMenuBar(Stage stage) {
         MenuBar menuBar = new MenuBar();
-        
+
         Menu fileMenu = new Menu("Fichier");
         MenuItem openItem = new MenuItem("Ouvrir...");
         openItem.setOnAction(e -> openFile(stage));
@@ -103,14 +113,19 @@ public class AdvancedLargeFileViewer extends Application {
         MenuItem exitItem = new MenuItem("Quitter");
         exitItem.setOnAction(e -> Platform.exit());
         fileMenu.getItems().addAll(openItem, closeItem, new SeparatorMenuItem(), exitItem);
-        
+
         Menu viewMenu = new Menu("Affichage");
         CheckMenuItem wrapTextItem = new CheckMenuItem("Retour à la ligne");
         wrapTextItem.setOnAction(e -> textArea.setWrapText(wrapTextItem.isSelected()));
+
+        // Dark mode toggle
+        CheckMenuItem darkModeItem = new CheckMenuItem("Mode sombre");
+        darkModeItem.setOnAction(e -> toggleDarkMode(darkModeItem.isSelected()));
+
         MenuItem refreshItem = new MenuItem("Rafraîchir");
         refreshItem.setOnAction(e -> loadChunkAtPosition(currentPosition));
-        viewMenu.getItems().addAll(wrapTextItem, refreshItem);
-        
+        viewMenu.getItems().addAll(wrapTextItem, darkModeItem, new SeparatorMenuItem(), refreshItem);
+
         Menu helpMenu = new Menu("Aide");
         MenuItem aboutItem = new MenuItem("À propos");
         aboutItem.setOnAction(e -> showAboutDialog());
@@ -119,11 +134,90 @@ public class AdvancedLargeFileViewer extends Application {
         MenuItem updateItem = new MenuItem("Vérifier les mises à jour");
         updateItem.setOnAction(e -> checkForUpdates(true));
         helpMenu.getItems().addAll(aboutItem, memoryItem, new SeparatorMenuItem(), updateItem);
-        
+
         menuBar.getMenus().addAll(fileMenu, viewMenu, helpMenu);
         return menuBar;
     }
-    
+
+    private void toggleDarkMode(boolean enable) {
+        isDarkMode = enable;
+
+        if (isDarkMode) {
+            // Appliquer le thème sombre
+            scene.getStylesheets().clear();
+            try {
+                String darkCss = getClass().getResource("/dark-theme.css").toExternalForm();
+                scene.getStylesheets().add(darkCss);
+            } catch (Exception e) {
+                // Si le fichier CSS n'est pas trouvé, utiliser des styles inline
+                applyDarkModeInline();
+            }
+
+            // Mettre à jour les toolbars
+            mainToolBar.setStyle("-fx-background-color: #252525;");
+            mainToolBar.getStyleClass().add("toolbar-main");
+
+            searchBar.setStyle("-fx-background-color: #3D3410;");
+            searchBar.getStyleClass().add("toolbar-search");
+
+            navigationBar.setStyle("-fx-background-color: #1A2A3D;");
+            navigationBar.getStyleClass().add("toolbar-navigation");
+
+            optionsBar.setStyle("-fx-background-color: #2D1A3D;");
+            optionsBar.getStyleClass().add("toolbar-options");
+
+            infoBox.setStyle("-fx-background-color: #2D2D2D;");
+            infoBox.getStyleClass().add("info-box");
+
+            fileInfoLabel.setStyle("-fx-font-weight: bold; -fx-text-fill: #4CAF50;");
+            fileInfoLabel.getStyleClass().add("info-label-dark");
+
+        } else {
+            // Restaurer le thème clair
+            scene.getStylesheets().clear();
+            try {
+                String lightCss = getClass().getResource("/style.css").toExternalForm();
+                scene.getStylesheets().add(lightCss);
+            } catch (Exception e) {
+                // Ignorer si le fichier n'existe pas
+            }
+
+            // Restaurer les styles d'origine
+            mainToolBar.setStyle("-fx-background-color: #ECEFF1;");
+            mainToolBar.getStyleClass().remove("toolbar-main");
+
+            searchBar.setStyle("-fx-background-color: #FFF9C4;");
+            searchBar.getStyleClass().remove("toolbar-search");
+
+            navigationBar.setStyle("-fx-background-color: #E3F2FD;");
+            navigationBar.getStyleClass().remove("toolbar-navigation");
+
+            optionsBar.setStyle("-fx-background-color: #F3E5F5;");
+            optionsBar.getStyleClass().remove("toolbar-options");
+
+            infoBox.setStyle("-fx-background-color: #F5F5F5;");
+            infoBox.getStyleClass().remove("info-box");
+
+            fileInfoLabel.setStyle("-fx-font-weight: bold; -fx-text-fill: #2E7D32;");
+            fileInfoLabel.getStyleClass().remove("info-label-dark");
+        }
+
+        statusLabel.setText("✓ Thème " + (isDarkMode ? "sombre" : "clair") + " activé");
+    }
+
+    private void applyDarkModeInline() {
+        // Styles inline de secours si le fichier CSS n'est pas trouvé
+        String darkStyle = "-fx-base: #1E1E1E; -fx-background: #1E1E1E; -fx-control-inner-background: #2D2D2D;";
+        scene.getRoot().setStyle(darkStyle);
+
+        textArea.setStyle(
+                "-fx-background-color: #1E1E1E; " +
+                        "-fx-text-fill: #E0E0E0; " +
+                        "-fx-font-family: 'Consolas', 'Courier New', monospace; " +
+                        "-fx-font-size: 11px;"
+        );
+    }
+
     private void checkForUpdates(boolean showNoUpdateMessage) {
         AutoUpdater.UpdateCallback callback = new AutoUpdater.UpdateCallback() {
             @Override
@@ -132,20 +226,20 @@ public class AdvancedLargeFileViewer extends Application {
                 alert.setTitle("Mise à jour disponible");
                 alert.setHeaderText("Version " + version + " disponible");
                 alert.setContentText(
-                    "Une nouvelle version de StreamText est disponible.\n\n" +
-                    "Version actuelle: " + AutoUpdater.getCurrentVersion() + "\n" +
-                    "Nouvelle version: " + version + "\n\n" +
-                    "Voulez-vous télécharger et installer la mise à jour maintenant ?"
+                        "Une nouvelle version de StreamText est disponible.\n\n" +
+                                "Version actuelle: " + AutoUpdater.getCurrentVersion() + "\n" +
+                                "Nouvelle version: " + version + "\n\n" +
+                                "Voulez-vous télécharger et installer la mise à jour maintenant ?"
                 );
-                
+
                 Optional<ButtonType> result = alert.showAndWait();
                 if (result.isPresent() && result.get() == ButtonType.OK) {
                     statusLabel.setText("Téléchargement de la mise à jour...");
-                    AutoUpdater updater = new AutoUpdater(this); // Recréé localement
+                    AutoUpdater updater = new AutoUpdater(this);
                     updater.downloadUpdate(downloadUrl);
                 }
             }
-            
+
             @Override
             public void onNoUpdate() {
                 if (showNoUpdateMessage) {
@@ -156,7 +250,7 @@ public class AdvancedLargeFileViewer extends Application {
                     alert.showAndWait();
                 }
             }
-            
+
             @Override
             public void onError(String error) {
                 if (showNoUpdateMessage) {
@@ -167,32 +261,32 @@ public class AdvancedLargeFileViewer extends Application {
                     alert.showAndWait();
                 }
             }
-            
+
             @Override
             public void onDownloadProgress(int progress) {
                 statusLabel.setText("Téléchargement: " + progress + "%");
             }
-            
+
             @Override
             public void onDownloadComplete(Path filePath) {
                 Alert alert = new Alert(Alert.AlertType.CONFIRMATION);
                 alert.setTitle("Téléchargement terminé");
                 alert.setHeaderText("Mise à jour téléchargée");
                 alert.setContentText("L'application va redémarrer pour installer la mise à jour.");
-                
+
                 Optional<ButtonType> result = alert.showAndWait();
                 if (result.isPresent() && result.get() == ButtonType.OK) {
-                    AutoUpdater updater = new AutoUpdater(this); // Recréé localement
+                    AutoUpdater updater = new AutoUpdater(this);
                     updater.installUpdate(filePath);
                 }
             }
         };
-        
+
         AutoUpdater updater = new AutoUpdater(callback);
         updater.checkForUpdates();
     }
-    
-    
+
+
     private HBox createMainToolBar(Stage stage) {
         Button openButton = new Button("📂 Ouvrir");
         openButton.setOnAction(e -> openFile(stage));
@@ -202,20 +296,20 @@ public class AdvancedLargeFileViewer extends Application {
         startButton.setOnAction(e -> goToStart());
         Button endButton = new Button("⏭ Fin");
         endButton.setOnAction(e -> goToEnd());
-        
+
         HBox toolBar = new HBox(10, openButton, refreshButton, new Separator(), startButton, endButton);
         toolBar.setPadding(new Insets(10));
         toolBar.setAlignment(Pos.CENTER_LEFT);
         toolBar.setStyle("-fx-background-color: #ECEFF1;");
         return toolBar;
     }
-    
+
     private HBox createSearchBar() {
         Label searchLabel = new Label("Rechercher:");
         searchField = new TextField();
         searchField.setPrefWidth(300);
         searchField.setPromptText("Entrez un texte à rechercher...");
-        
+
         Button searchButton = new Button("🔍 Rechercher");
         searchButton.setOnAction(e -> performSearch());
         Button prevResultButton = new Button("◀ Précédent");
@@ -224,22 +318,22 @@ public class AdvancedLargeFileViewer extends Application {
         nextResultButton.setOnAction(e -> goToNextSearchResult());
         Button clearSearchButton = new Button("✖ Effacer");
         clearSearchButton.setOnAction(e -> clearSearch());
-        
+
         HBox searchBar = new HBox(10, searchLabel, searchField, searchButton, prevResultButton, nextResultButton, clearSearchButton);
         searchBar.setPadding(new Insets(5, 10, 5, 10));
         searchBar.setAlignment(Pos.CENTER_LEFT);
         searchBar.setStyle("-fx-background-color: #FFF9C4;");
         return searchBar;
     }
-    
+
     private HBox createNavigationBar() {
         Button prevButton = new Button("◀◀ Chunk précédent");
         prevButton.setOnAction(e -> loadPreviousChunk());
-        
+
         TextField positionField = new TextField("0");
         positionField.setPrefWidth(150);
         positionField.setPromptText("Position (bytes)");
-        
+
         Button goToButton = new Button("Aller à");
         goToButton.setOnAction(e -> {
             try {
@@ -249,24 +343,24 @@ public class AdvancedLargeFileViewer extends Application {
                 statusLabel.setText("Position invalide");
             }
         });
-        
+
         Button nextButton = new Button("Chunk suivant ▶▶");
         nextButton.setOnAction(e -> loadNextChunk());
-        
+
         HBox navBar = new HBox(10, prevButton, positionField, goToButton, nextButton);
         navBar.setPadding(new Insets(5, 10, 5, 10));
         navBar.setAlignment(Pos.CENTER);
         navBar.setStyle("-fx-background-color: #E3F2FD;");
         return navBar;
     }
-    
+
     private HBox createOptionsBar() {
         Label encodingLabel = new Label("Encodage:");
         encodingCombo = new ComboBox<>();
         encodingCombo.getItems().addAll("UTF-8", "ISO-8859-1", "Windows-1252", "UTF-16");
         encodingCombo.setValue("UTF-8");
         encodingCombo.setOnAction(e -> changeEncoding());
-        
+
         Label chunkLabel = new Label("Taille chunk:");
         chunkSizeCombo = new ComboBox<>();
         chunkSizeCombo.getItems().addAll(512, 1024, 2048, 4096, 8192);
@@ -283,28 +377,28 @@ public class AdvancedLargeFileViewer extends Application {
                 alert.showAndWait();
             }
         });
-        
+
         HBox optionsBar = new HBox(10, encodingLabel, encodingCombo, new Separator(), chunkLabel, chunkSizeCombo, kbLabel);
         optionsBar.setPadding(new Insets(5, 10, 5, 10));
         optionsBar.setAlignment(Pos.CENTER_LEFT);
         optionsBar.setStyle("-fx-background-color: #F3E5F5;");
         return optionsBar;
     }
-    
+
     private void openFile(Stage stage) {
         FileChooser fileChooser = new FileChooser();
         fileChooser.setTitle("Choisir un fichier texte");
         fileChooser.getExtensionFilters().addAll(
-            new FileChooser.ExtensionFilter("Fichiers texte", "*.txt", "*.log", "*.csv", "*.json", "*.xml"),
-            new FileChooser.ExtensionFilter("Tous les fichiers", "*.*")
+                new FileChooser.ExtensionFilter("Fichiers texte", "*.txt", "*.log", "*.csv", "*.json", "*.xml"),
+                new FileChooser.ExtensionFilter("Tous les fichiers", "*.*")
         );
-        
+
         File file = fileChooser.showOpenDialog(stage);
         if (file != null) {
             openFileAsync(file);
         }
     }
-    
+
     private void openFileAsync(File file) {
         closeFileChannel();
         try {
@@ -318,23 +412,23 @@ public class AdvancedLargeFileViewer extends Application {
             showError("Erreur lors de l'ouverture du fichier: " + e.getMessage());
         }
     }
-    
+
     private void loadChunkAtPosition(long position) {
         if (fileChannel == null) return;
         if (position < 0) position = 0;
         if (position >= fileSize) position = Math.max(0, fileSize - currentChunkSize);
-        
+
         final long finalPosition = position;
         currentPosition = finalPosition;
-        
+
         progressBar.setVisible(true);
         progressBar.setProgress(ProgressBar.INDETERMINATE_PROGRESS);
         statusLabel.setText("⏳ Chargement du chunk à la position " + formatFileSize(finalPosition) + "...");
         textArea.clear();
-        
+
         int readSize = (int) Math.min(currentChunkSize, fileSize - finalPosition);
         ByteBuffer buffer = ByteBuffer.allocate(readSize);
-        
+
         fileChannel.read(buffer, finalPosition, buffer, new CompletionHandler<Integer, ByteBuffer>() {
             @Override
             public void completed(Integer bytesRead, ByteBuffer attachment) {
@@ -342,18 +436,18 @@ public class AdvancedLargeFileViewer extends Application {
                 byte[] data = new byte[attachment.remaining()];
                 attachment.get(data);
                 String content = new String(data, currentCharset);
-                
+
                 Platform.runLater(() -> {
                     textArea.setText(content);
                     textArea.positionCaret(0);
                     progressBar.setVisible(false);
                     double progress = (double) finalPosition / fileSize * 100;
                     statusLabel.setText(String.format("✓ Position: %s / %s (%.1f%%) | %d bytes lus",
-                        formatFileSize(finalPosition), formatFileSize(fileSize), progress, bytesRead));
+                            formatFileSize(finalPosition), formatFileSize(fileSize), progress, bytesRead));
                     updateMemoryInfo();
                 });
             }
-            
+
             @Override
             public void failed(Throwable exc, ByteBuffer attachment) {
                 Platform.runLater(() -> {
@@ -363,7 +457,7 @@ public class AdvancedLargeFileViewer extends Application {
             }
         });
     }
-    
+
     private void loadNextChunk() {
         long nextPosition = currentPosition + currentChunkSize;
         if (nextPosition < fileSize) {
@@ -372,25 +466,25 @@ public class AdvancedLargeFileViewer extends Application {
             statusLabel.setText("⚠ Fin du fichier atteinte");
         }
     }
-    
+
     private void loadPreviousChunk() {
         long prevPosition = currentPosition - currentChunkSize;
         loadChunkAtPosition(prevPosition);
     }
-    
+
     private void goToStart() {
         loadChunkAtPosition(0);
     }
-    
+
     private void goToEnd() {
         long lastChunkPosition = Math.max(0, fileSize - currentChunkSize);
         loadChunkAtPosition(lastChunkPosition);
     }
-    
+
     private void goToPosition(long position) {
         loadChunkAtPosition(position);
     }
-    
+
     private void performSearch() {
         String searchText = searchField.getText();
         if (searchText.isEmpty()) {
@@ -407,7 +501,7 @@ public class AdvancedLargeFileViewer extends Application {
             statusLabel.setText("✗ Texte non trouvé dans le chunk actuel");
         }
     }
-    
+
     private void goToNextSearchResult() {
         String searchText = searchField.getText();
         if (searchText.isEmpty()) return;
@@ -421,7 +515,7 @@ public class AdvancedLargeFileViewer extends Application {
             statusLabel.setText("✗ Aucune occurrence suivante dans ce chunk");
         }
     }
-    
+
     private void goToPreviousSearchResult() {
         String searchText = searchField.getText();
         if (searchText.isEmpty()) return;
@@ -435,13 +529,13 @@ public class AdvancedLargeFileViewer extends Application {
             statusLabel.setText("✗ Aucune occurrence précédente dans ce chunk");
         }
     }
-    
+
     private void clearSearch() {
         searchField.clear();
         searchResults.clear();
         textArea.deselect();
     }
-    
+
     private void changeEncoding() {
         String encoding = encodingCombo.getValue();
         switch (encoding) {
@@ -454,12 +548,12 @@ public class AdvancedLargeFileViewer extends Application {
             loadChunkAtPosition(currentPosition);
         }
     }
-    
+
     private void changeChunkSize() {
         currentChunkSize = chunkSizeCombo.getValue() * 1024;
         statusLabel.setText("✓ Taille du chunk changée à " + formatFileSize(currentChunkSize));
     }
-    
+
     private void closeCurrentFile() {
         closeFileChannel();
         textArea.clear();
@@ -468,13 +562,13 @@ public class AdvancedLargeFileViewer extends Application {
         currentPosition = 0;
         fileSize = 0;
     }
-    
+
     private void closeFileChannel() {
         if (fileChannel != null && fileChannel.isOpen()) {
             try { fileChannel.close(); } catch (IOException e) { }
         }
     }
-    
+
     private void updateMemoryInfo() {
         Runtime runtime = Runtime.getRuntime();
         long usedMemory = (runtime.totalMemory() - runtime.freeMemory()) / (1024 * 1024);
@@ -482,47 +576,47 @@ public class AdvancedLargeFileViewer extends Application {
         String memInfo = String.format(" | 💾 Mémoire: %d MB / %d MB", usedMemory, maxMemory);
         statusLabel.setText(statusLabel.getText() + memInfo);
     }
-    
+
     private void showMemoryDialog() {
         Runtime runtime = Runtime.getRuntime();
         long totalMemory = runtime.totalMemory() / (1024 * 1024);
         long freeMemory = runtime.freeMemory() / (1024 * 1024);
         long usedMemory = totalMemory - freeMemory;
         long maxMemory = runtime.maxMemory() / (1024 * 1024);
-        
+
         String message = String.format(
-            "Mémoire utilisée: %d MB\nMémoire libre: %d MB\nMémoire totale: %d MB\nMémoire maximale: %d MB\n\n" +
-            "Cette application utilise un chargement par chunks pour\nminimiser l'utilisation de la mémoire, même pour des fichiers\nde plusieurs dizaines de gigaoctets.",
-            usedMemory, freeMemory, totalMemory, maxMemory
+                "Mémoire utilisée: %d MB\nMémoire libre: %d MB\nMémoire totale: %d MB\nMémoire maximale: %d MB\n\n" +
+                        "Cette application utilise un chargement par chunks pour\nminimiser l'utilisation de la mémoire, même pour des fichiers\nde plusieurs dizaines de gigaoctets.",
+                usedMemory, freeMemory, totalMemory, maxMemory
         );
-        
+
         Alert alert = new Alert(Alert.AlertType.INFORMATION);
         alert.setTitle("Informations mémoire");
         alert.setHeaderText("Consommation mémoire de l'application");
         alert.setContentText(message);
         alert.showAndWait();
     }
-    
+
     private void showAboutDialog() {
         Alert alert = new Alert(Alert.AlertType.INFORMATION);
         alert.setTitle("À propos");
         alert.setHeaderText("Advanced Large File Viewer");
         alert.setContentText(
-            "Version " + AutoUpdater.getCurrentVersion() + "\n\n" +
-            "Visualiseur de fichiers texte ultra-léger utilisant\nAsynchronousFileChannel pour une performance optimale.\n\n" +
-            "Caractéristiques:\n• Lecture asynchrone non-bloquante\n• Consommation mémoire minimale\n• Support de fichiers de plusieurs Go\n" +
-            "• Recherche dans le chunk actuel\n• Multiples encodages\n• Navigation par chunks personnalisables\n• Mise à jour automatique depuis GitHub"
+                "Version " + AutoUpdater.getCurrentVersion() + "\n\n" +
+                        "Visualiseur de fichiers texte ultra-léger utilisant\nAsynchronousFileChannel pour une performance optimale.\n\n" +
+                        "Caractéristiques:\n• Lecture asynchrone non-bloquante\n• Consommation mémoire minimale\n• Support de fichiers de plusieurs Go\n" +
+                        "• Recherche dans le chunk actuel\n• Multiples encodages\n• Navigation par chunks personnalisables\n• Mise à jour automatique depuis GitHub\n• Mode sombre/clair"
         );
         alert.showAndWait();
     }
-    
+
     private String formatFileSize(long bytes) {
         if (bytes < 1024) return bytes + " B";
         if (bytes < 1024 * 1024) return String.format("%.2f KB", bytes / 1024.0);
         if (bytes < 1024L * 1024 * 1024) return String.format("%.2f MB", bytes / (1024.0 * 1024));
         return String.format("%.2f GB", bytes / (1024.0 * 1024 * 1024));
     }
-    
+
     private void showError(String message) {
         Alert alert = new Alert(Alert.AlertType.ERROR);
         alert.setTitle("Erreur");
@@ -530,7 +624,7 @@ public class AdvancedLargeFileViewer extends Application {
         alert.setContentText(message);
         alert.showAndWait();
     }
-    
+
     public static void main(String[] args) {
         launch(args);
     }
