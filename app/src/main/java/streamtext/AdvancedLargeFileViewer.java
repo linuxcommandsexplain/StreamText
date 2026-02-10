@@ -42,7 +42,7 @@ public class AdvancedLargeFileViewer extends Application {
     
     @Override
     public void start(Stage primaryStage) {
-        primaryStage.setTitle("Advanced Large File Viewer - Ultra Léger");
+        primaryStage.setTitle("StreamText by Axel");
         
         textArea = new TextArea();
         textArea.setEditable(false);
