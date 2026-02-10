@@ -3,7 +3,7 @@ name: Auto Build and Release
 on:
   push:
     branches:
-      - main  # Se lance quand tu pousses du code sur la branche main
+      - main
 
 jobs:
   release:
@@ -15,7 +15,7 @@ jobs:
       - name: Checkout du code
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0 # Important pour que Git puisse créer des tags
+          fetch-depth: 0
 
       - name: Configuration de Java 21
         uses: actions/setup-java@v4
@@ -30,18 +30,28 @@ jobs:
       - name: Build du Fat JAR
         run: ./gradlew jar
 
-      - name: Déterminer la version
-        id: get_version
-        run: |
-          # Récupère la version dans le build.gradle ou utilise le timestamp
-          echo "VERSION=v1.0.$(date +'%Y%m%d%H%M%S')" >> $GITHUB_OUTPUT
+      # Calcule le prochain numéro de version (ex: v1.0.1)
+      - name: Calculer le prochain tag
+        id: tagger
+        uses: anothrNick/github-tag-action@1.64.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          WITH_V: true
+          DEFAULT_BUMP: patch
 
-      - name: Créer le Tag et la Release GitHub
+      # On renomme le JAR pour qu'il soit explicite dans la release
+      - name: Préparer les fichiers de build
+        run: |
+          mkdir -p artifacts
+          cp build/libs/*.jar artifacts/StreamText-${{ steps.tagger.outputs.new_tag }}.jar
+
+      # Crée la release et ajoute les fichiers du dossier 'artifacts'
+      - name: Créer la Release GitHub
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ steps.get_version.outputs.VERSION }}
-          name: Release ${{ steps.get_version.outputs.VERSION }}
-          files: build/libs/*.jar
+          tag_name: ${{ steps.tagger.outputs.new_tag }}
+          name: Release ${{ steps.tagger.outputs.new_tag }}
+          files: artifacts/*.jar
           generate_release_notes: true
           draft: false
           prerelease: false
