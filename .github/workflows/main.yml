@@ -1,8 +1,4 @@
-Erreur corrigée ! Le problème était un double outputs mal placé à la ligne 41.
-Workflow CORRIGÉ .github/workflows/auto-release.yml :
-
-text
-name: 🚀 Auto Release (Tag + Build + Packages)
+name: Auto Release
 
 on:
   workflow_dispatch:
@@ -14,7 +10,7 @@ on:
         type: choice
         options:
         - patch
-        - minor  
+        - minor
         - major
   push:
     branches: [ main ]
@@ -24,7 +20,6 @@ permissions:
   packages: write
 
 jobs:
-  # 1️⃣ CRÉER LE TAG AUTOMATIQUE
   bump-tag:
     runs-on: ubuntu-latest
     outputs:
@@ -35,7 +30,7 @@ jobs:
       with:
         fetch-depth: 0
     
-    - name: 🆕 Générer prochaine version
+    - name: Generate next version
       id: tag
       uses: anothrNick/github-tags@v1
       with:
@@ -43,7 +38,7 @@ jobs:
         tag_prefix: 'v'
         default_bump: ${{ github.event.inputs.bump || 'patch' }}
     
-    - name: 📝 Générer changelog
+    - name: Generate changelog
       id: changelog
       uses: heinrichreimer/github-changelog-generator-token@v2.4.0
       with:
@@ -51,7 +46,6 @@ jobs:
         sinceTag: v0.0.0
         futureRelease: true
 
-  # 2️⃣ BUILD MULTI-PLATEFORME
   build:
     needs: bump-tag
     strategy:
@@ -80,20 +74,19 @@ jobs:
         distribution: 'temurin'
         java-version: '21'
     
-    - name: 📦 Build jpackage ${{ matrix.name }}
+    - name: Build jpackage
       env:
         VERSION_TAG: ${{ needs.bump-tag.outputs.new_tag }}
       run: |
         ./gradlew jpackage \
           -DjpackagePlatform=${{ matrix.target }} \
-          -PversionName=$VERSION_TAG
+          -PversionName=${VERSION_TAG}
         
-        # Packaging selon OS
         cd build/image
         if [ "${{ matrix.name }}" = "linux" ]; then
           tar czf StreamText-${VERSION_TAG}-linux.tar.gz StreamText-*/
         elif [ "${{ matrix.name }}" = "win" ]; then
-          mv StreamText-*/StreamText-*.msi StreamText-${VERSION_TAG}-win.msi
+          mv StreamText-*/StreamText-*.msi ../StreamText-${VERSION_TAG}-win.msi
         else
           hdiutil create StreamText-${VERSION_TAG}-macos.dmg -srcfolder StreamText-*/
         fi
@@ -106,7 +99,6 @@ jobs:
           StreamText-*.msi
           StreamText-*.dmg
 
-  # 3️⃣ CRÉER LA RELEASE
   release:
     needs: [bump-tag, build]
     runs-on: ubuntu-latest
@@ -115,7 +107,7 @@ jobs:
       with:
         path: artifacts/
     
-    - name: 📤 Publier Release
+    - name: Publish Release
       uses: softprops/action-gh-release@v2
       with:
         tag_name: ${{ needs.bump-tag.outputs.new_tag }}
